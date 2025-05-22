@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EduTrackApp</title>
+  <style>
+    * { box-sizing: border-box }
+    body { margin:0; padding:0; font-family:Arial,sans-serif; background:#eef4fc;
+           display:flex; justify-content:center; align-items:center; min-height:100vh }
+    .container { width:100%; max-width:720px; background:#fff; border-radius:8px;
+                 box-shadow:0 6px 12px rgba(0,0,0,0.1); overflow:hidden }
+    header { background:#0078d7; color:#fff; padding:16px; text-align:center; font-size:1.5rem }
+    main { padding:20px }
+    h2 { margin-top:0; color:#004a99; text-align:center }
+    .hidden { display:none }
+    input, select, button { font-size:1rem; }
+    input, select { width:100%; padding:10px; margin:8px 0; border:1px solid #0078d7;
+                     border-radius:6px }
+    button { width:100%; padding:12px; margin:8px 0; border:none; border-radius:6px;
+             background:#0078d7; color:#fff; font-weight:600; cursor:pointer;
+             transition:background 0.2s }
+    button:hover { background:#005a9e }
+    .btn-disabled { background:#a3c7f9; cursor:not-allowed }
+    .tabs { display:flex; border-bottom:2px solid #d1e3f8; }
+    .tab-trigger { flex:1; padding:12px; text-align:center; cursor:pointer;
+                   color:#0078d7; border-bottom:2px solid transparent;
+                   font-weight:600 }
+    .tab-trigger.active { border-color:#0078d7; background:#f0f6ff }
+    .tab-content { display:none; padding:16px }
+    .tab-content.active { display:block }
+    .card { background:#fff; border:1px solid #d1e3f8; border-radius:8px;
+            box-shadow:0 2px 6px rgba(0,0,0,0.05); margin-bottom:20px }
+    .card-content { padding:16px }
+    .space-y-2 > * + * { margin-top:8px }
+    .space-y-4 > * + * { margin-top:16px }
+    .progress { width:100%; height:16px; background:#d1e3f8; border-radius:8px;
+                overflow:hidden; margin-top:12px }
+    .progress-bar { height:100%; background:#0078d7; width:0% }
+    .task-item { margin-bottom:12px }
+    .task-item h3 { margin:0 0 8px; color:#0052cc }
+    .chat-message { margin-bottom:8px; line-height:1.4 }
+    .chat-name { font-weight:bold; color:#0052cc }
+    .logout-btn { background:#e05050; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>EduTrack</header>
+  <main>
+    <!-- AUTH -->
+    <section id="auth">
+      <h2>Sign Up / Log In</h2>
+      <input type="text" id="username" placeholder="Username" />
+      <input type="text" id="fullname" placeholder="Full Name" />
+      <select id="role">
+        <option value="student" selected>Student</option>
+        <option value="teacher">Teacher</option>
+      </select>
+      <input type="password" id="password" placeholder="Password" />
+      <button id="authBtn" class="btn-disabled" disabled>Sign Up</button>
+      <button id="toggleAuth" style="background:none; color:#0078d7; text-decoration:underline;
+              border:none; cursor:pointer; margin-top:8px">
+        Already have an account? Log In
+      </button>
+    </section>
+
+    <!-- APP -->
+    <section id="app" class="hidden">
+      <div id="userInfo" style="text-align:center; margin-bottom:20px"></div>
+
+      <div class="tabs">
+        <div class="tab-trigger active" data-tab="dashboard">Dashboard</div>
+        <div class="tab-trigger" data-tab="feedback">Feedback</div>
+        <div class="tab-trigger" data-tab="chat">Chat</div>
+        <div class="tab-trigger" data-tab="notifications">Notifications</div>
+        <div class="tab-trigger" data-tab="account">Account</div>
+      </div>
+
+      <!-- Dashboard -->
+      <div id="dashboard" class="tab-content active">
+        <div class="card">
+          <div class="card-content space-y-4">
+            <input type="text" id="newTask" placeholder="Add a new task…" />
+            <button id="addTaskBtn">Add Task</button>
+            <div id="taskList"></div>
+            <div class="progress"><div id="overallBar" class="progress-bar"></div></div>
+            <p id="overallPct" style="text-align:right;">0% completed</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feedback -->
+      <div id="feedback" class="tab-content">
+        <div class="card"><div class="card-content">
+          <p>Your mentor's feedback will appear here. (Coming soon…)</p>
+        </div></div>
+      </div>
+
+      <!-- Chat -->
+      <div id="chat" class="tab-content space-y-4">
+        <div class="card">
+          <div class="card-content" id="chatMsgs" style="max-height:250px; overflow-y:auto"></div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <input type="text" id="chatIn" placeholder="Type a message…" />
+            <button id="sendChat">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div id="notifications" class="tab-content">
+        <div class="card"><div class="card-content" id="notifList">
+          <p style="color:#666;">No notifications yet.</p>
+        </div></div>
+      </div>
+
+      <!-- Account -->
+      <div id="account" class="tab-content">
+        <div class="card"><div class="card-content">
+          <p>Username: <strong id="accUser"></strong></p>
+          <p>Full Name: <strong id="accName"></strong></p>
+          <p>Role:      <strong id="accRole"></strong></p>
+        </div></div>
+      </div>
+
+      <button id="logout" class="logout-btn">Logout & Clear All Data</button>
+    </section>
+  </main>
+</div>
+
+<script>
+  // State
+  let signedIn = false;
+  let user = {};
+  const tasks = [];
+  const messages = [];
+  const notifications = [];
+
+  // DOM
+  const authSect     = document.getElementById('auth');
+  const appSect      = document.getElementById('app');
+  const authBtn      = document.getElementById('authBtn');
+  const toggleAuth   = document.getElementById('toggleAuth');
+  const usernameIn   = document.getElementById('username');
+  const fullnameIn   = document.getElementById('fullname');
+  const roleIn       = document.getElementById('role');
+  const passwordIn   = document.getElementById('password');
+
+  const userInfo     = document.getElementById('userInfo');
+  const tabTriggers  = document.querySelectorAll('.tab-trigger');
+  const tabContents  = document.querySelectorAll('.tab-content');
+
+  const newTaskIn    = document.getElementById('newTask');
+  const addTaskBtn   = document.getElementById('addTaskBtn');
+  const taskList     = document.getElementById('taskList');
+  const overallBar   = document.getElementById('overallBar');
+  const overallPct   = document.getElementById('overallPct');
+
+  const chatMsgs     = document.getElementById('chatMsgs');
+  const chatIn       = document.getElementById('chatIn');
+  const sendChatBtn  = document.getElementById('sendChat');
+
+  const notifList    = document.getElementById('notifList');
+
+  const accUser      = document.getElementById('accUser');
+  const accName      = document.getElementById('accName');
+  const accRole      = document.getElementById('accRole');
+  const logoutBtn    = document.getElementById('logout');
+
+  // Enable auth button when fields filled
+  function updateAuthBtn() {
+    authBtn.disabled = !(usernameIn.value && fullnameIn.value && passwordIn.value);
+    authBtn.classList.toggle('btn-disabled', authBtn.disabled);
+  }
+  [usernameIn, fullnameIn, passwordIn].forEach(el=>el.addEventListener('input',updateAuthBtn));
+  updateAuthBtn();
+
+  // Toggle Sign Up / Log In (we’ll treat both the same here)
+  toggleAuth.onclick = () => {
+    // for simplicity we use same form: on click it resets and stays Sign Up
+    signedIn = false;
+    authSect.classList.remove('hidden');
+    appSect.classList.add('hidden');
+  };
+
+  // Sign Up / Log In
+  authBtn.onclick = () => {
+    user.username = usernameIn.value.trim();
+    user.name     = fullnameIn.value.trim();
+    user.role     = roleIn.value;
+    signedIn = true;
+    notifications.length = 0;
+    notifications.push(`Welcome, ${user.username}! Your account is ready.`);
+    renderNotifications();
+    showApp();
+  };
+
+  // Switch Tabs
+  tabTriggers.forEach(btn => btn.onclick = () => {
+    tabTriggers.forEach(b=>b.classList.remove('active'));
+    tabContents.forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+
+  // Show App after auth
+  function showApp() {
+    authSect.classList.add('hidden');
+    appSect.classList.remove('hidden');
+    userInfo.textContent = `Signed in as ${user.name} (${user.role})`;
+    accUser.textContent = user.username;
+    accName.textContent = user.name;
+    accRole.textContent = user.role;
+    renderTasks();
+    renderChat();
+    renderNotifications();
+  }
+
+  // Tasks
+  addTaskBtn.onclick = () => {
+    const text = newTaskIn.value.trim();
+    if(!text) return;
+    tasks.push({ text, completed:false });
+    notifications.push(`New task added: ${text}`);
+    newTaskIn.value = '';
+    renderTasks();
+    renderNotifications();
+  };
+
+  function renderTasks(){
+    taskList.innerHTML = '';
+    tasks.forEach((t,i)=>{
+      const div = document.createElement('div');
+      div.className='task-item';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = t.text;
+      if(t.completed) h3.style.textDecoration='line-through';
+
+      const slider = document.createElement('input');
+      slider.type='range'; slider.min=0; slider.max=100;
+      slider.value = t.completed?100:0;
+      slider.onchange = ()=>{
+        t.completed = slider.value>=100;
+        notifications.push(t.completed
+          ? `Task completed: ${t.text}`
+          : `Task marked incomplete: ${t.text}`);
+        renderTasks(); renderNotifications(); renderProgress();
+      };
+
+      div.appendChild(h3);
+      div.appendChild(slider);
+      taskList.appendChild(div);
+    });
+    renderProgress();
+  }
+
+  function renderProgress(){
+    const done = tasks.filter(t=>t.completed).length;
+    const pct  = tasks.length?Math.round(done/tasks.length*100):0;
+    overallBar.style.width=`${pct}%`;
+    overallPct.textContent=`${pct}% completed`;
+  }
+
+  // Chat
+  sendChatBtn.onclick = () => {
+    const txt = chatIn.value.trim();
+    if (!txt) return;
+
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const formattedHour = hours % 12 || 12;
+    const time = `${formattedHour}:${minutes} ${ampm}`;
+
+    messages.push({ sender: user.name, text: txt, time });
+    chatIn.value = '';
+    renderChat();
+  };
+
+  function renderChat() {
+    chatMsgs.innerHTML = '';
+    messages.forEach(m => {
+      const d = document.createElement('div');
+      d.className = 'chat-message';
+      d.innerHTML = `<span class="chat-name">${m.sender}:</span> 
+                     <span class="chat-text">${m.text}</span> 
+                     <span style="color:gray; font-size:0.9em">(${m.time})</span>`;
+      chatMsgs.appendChild(d);
+    });
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+  }
+
+  // Notifications
+  function renderNotifications() {
+    if(notifications.length === 0){
+      notifList.innerHTML = '<p style="color:#666;">No notifications yet.</p>';
+      return;
+    }
+    notifList.innerHTML = notifications.map(n=>`<p>${n}</p>`).join('');
+  }
+
+  // Logout clears all
+  logoutBtn.onclick = () => {
+    if(!confirm('Are you sure you want to logout and clear all data?')){
+      return;
+    }
+    signedIn = false;
+    user = {};
+    tasks.length = 0;
+    messages.length = 0;
+    notifications.length = 0;
+
+    // Clear UI and show auth
+    authSect.classList.remove('hidden');
+    appSect.classList.add('hidden');
+
+    usernameIn.value = '';
+    fullnameIn.value = '';
+    passwordIn.value = '';
+    roleIn.value = 'student';
+
+    updateAuthBtn();
+  };
+
+</script>
+
+</body>
+</html>
+
+
+
+
+
